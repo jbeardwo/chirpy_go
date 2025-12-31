@@ -6,14 +6,24 @@ import (
 )
 
 func main() {
+	const fileRoot = "."
+	const port = "8080"
 	serveMux := http.NewServeMux()
-	serveMux.Handle("/", http.FileServer(http.Dir(".")))
+	fs := http.FileServer(http.Dir(fileRoot))
+	serveMux.Handle("/app/", http.StripPrefix("/app", fs))
+	serveMux.HandleFunc("/healthz", readyHandler)
 	server := http.Server{
 		Handler: serveMux,
-		Addr:    ":8080",
+		Addr:    ":" + port,
 	}
 	err := server.ListenAndServe()
 	if err != nil {
 		fmt.Printf("error with listen and serve: %v\n", err)
 	}
+}
+
+func readyHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("OK"))
 }
