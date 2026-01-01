@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync/atomic"
@@ -22,6 +23,7 @@ func main() {
 	serveMux.HandleFunc("GET /api/healthz", readyHandler)
 	serveMux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
 	serveMux.HandleFunc("POST /admin/reset", apiCfg.resetMetricsHandler)
+	serveMux.HandleFunc("POST /api/validate_chirp", apiCfg.validateChirpHandler)
 	server := http.Server{
 		Handler: serveMux,
 		Addr:    ":" + port,
@@ -62,4 +64,44 @@ func (cfg *apiConfig) metricsHandler(w http.ResponseWriter, r *http.Request) {
 func (cfg *apiConfig) resetMetricsHandler(w http.ResponseWriter, r *http.Request) {
 	cfg.fileserverHits.Store(0)
 	w.WriteHeader(http.StatusOK)
+}
+
+func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Body string `json:"body"`
+	}
+	type errReturnVals struct {
+		Error string `json:"error"`
+	}
+	type validReturnVals struct {
+		Valid bool `json:"valid"`
+	}
+	w.Header().Set("Content-Type", "application/json")
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		respBody := errReturnVals{
+			Error: "Something went wrong",
+		}
+		dat, _ := json.Marshal(respBody)
+		w.WriteHeader(500)
+		_, _ = w.Write(dat)
+		return
+	}
+	if len(params.Body) > 140 {
+		respBody := errReturnVals{
+			Error: "Chirp is too long",
+		}
+		dat, _ := json.Marshal(respBody)
+		w.WriteHeader(400)
+		_, _ = w.Write(dat)
+		return
+	}
+	respBody := validReturnVals{
+		Valid: true,
+	}
+	dat, _ := json.Marshal(respBody)
+	w.WriteHeader(200)
+	_, _ = w.Write(dat)
 }
