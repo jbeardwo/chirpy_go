@@ -1,6 +1,11 @@
 package auth
 
-import "testing"
+import (
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+)
 
 func TestHashAndCheckPassword_Success(t *testing.T) {
 	password := "CorrectHorseBatteryStaple123!"
@@ -21,5 +26,83 @@ func TestHashAndCheckPassword_Success(t *testing.T) {
 
 	if !ok {
 		t.Fatal("expected password to match hash")
+	}
+}
+
+func TestMakeJWT(t *testing.T) {
+	userID := uuid.New()
+	secret := "test-secret"
+	expiresIn := time.Hour
+
+	token, err := MakeJWT(userID, secret, expiresIn)
+	if err != nil {
+		t.Fatalf("MakeJWT failed: %v", err)
+	}
+
+	if token == "" {
+		t.Fatal("Expected non-empty token")
+	}
+}
+
+func TestValidateJWT_Success(t *testing.T) {
+	userID := uuid.New()
+	secret := "test-secret"
+	expiresIn := time.Hour
+
+	token, err := MakeJWT(userID, secret, expiresIn)
+	if err != nil {
+		t.Fatalf("MakeJWT failed: %v", err)
+	}
+
+	returnedID, err := ValidateJWT(token, secret)
+	if err != nil {
+		t.Fatalf("ValidateJWT failed: %v", err)
+	}
+
+	if returnedID != userID {
+		t.Errorf("Expected userID %v, got %v", userID, returnedID)
+	}
+}
+
+func TestValidateJWT_ExpiredToken(t *testing.T) {
+	userID := uuid.New()
+	secret := "test-secret"
+	expiresIn := -time.Hour
+
+	token, err := MakeJWT(userID, secret, expiresIn)
+	if err != nil {
+		t.Fatalf("MakeJWT failed: %v", err)
+	}
+
+	_, err = ValidateJWT(token, secret)
+	if err == nil {
+		t.Fatal("Expected error for expired token, got nil")
+	}
+}
+
+func TestValidateJWT_WrongSecret(t *testing.T) {
+	userID := uuid.New()
+	secret := "correct-secret"
+	wrongSecret := "wrong-secret"
+	expiresIn := time.Hour
+
+	token, err := MakeJWT(userID, secret, expiresIn)
+	if err != nil {
+		t.Fatalf("MakeJWT failed: %v", err)
+	}
+
+	_, err = ValidateJWT(token, wrongSecret)
+	if err == nil {
+		t.Fatal("Expected error for wrong secret, got nil")
+	}
+}
+
+func TestValidateJWT_MalformedToken(t *testing.T) {
+	secret := "test-secret"
+	malformedToken := "not.a.valid.jwt"
+
+	_, err := ValidateJWT(malformedToken, secret)
+	if err == nil {
+		t.Fatal("Expected error for malformed token, got nil")
 	}
 }
